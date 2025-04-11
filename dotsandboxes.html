@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dots and Boxes 32x32</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+    canvas {
+      border: 1px solid black;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    #score {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dots and Boxes - 32x32 Grid</h1>
+  <canvas id="gameCanvas" width="640" height="640"></canvas>
+  <div id="score">Player: 0 | AI: 0</div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const gridSize = 32;
+    const cellSize = canvas.width / gridSize;
+    const dotRadius = 2;
+
+    let lines = {}; // key: "x1,y1,x2,y2"
+    let boxes = {}; // key: "x,y"
+    let playerScore = 0;
+    let aiScore = 0;
+    let currentPlayer = "player";
+    let aiMoveCounter = 0;
+
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "black";
+
+      for (let i = 0; i <= gridSize; i++) {
+        for (let j = 0; j <= gridSize; j++) {
+          ctx.beginPath();
+          ctx.arc(i * cellSize, j * cellSize, dotRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.strokeStyle = "black";
+      for (const key in lines) {
+        const [x1, y1, x2, y2] = key.split(",").map(Number);
+        ctx.beginPath();
+        ctx.moveTo(x1 * cellSize, y1 * cellSize);
+        ctx.lineTo(x2 * cellSize, y2 * cellSize);
+        ctx.stroke();
+      }
+
+      for (const key in boxes) {
+        const [x, y] = key.split(",").map(Number);
+        ctx.fillStyle = boxes[key] === "player" ? "rgba(0,0,255,0.3)" : "rgba(255,0,0,0.3)";
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+      }
+    }
+
+    function getLineKey(x1, y1, x2, y2) {
+      return `${Math.min(x1,x2)},${Math.min(y1,y2)},${Math.max(x1,x2)},${Math.max(y1,y2)}`;
+    }
+
+    function isValidLine(x1, y1, x2, y2) {
+      const dx = Math.abs(x1 - x2);
+      const dy = Math.abs(y1 - y2);
+      if (dx + dy !== 1) return false;
+      const key = getLineKey(x1, y1, x2, y2);
+      return !lines[key];
+    }
+
+    function addLine(x1, y1, x2, y2, player) {
+      const key = getLineKey(x1, y1, x2, y2);
+      lines[key] = true;
+      let madeBox = false;
+
+      const boxesToCheck = [];
+      if (x1 !== x2) {
+        boxesToCheck.push([Math.min(x1, x2), y1]);
+        boxesToCheck.push([Math.min(x1, x2), y1 - 1]);
+      } else {
+        boxesToCheck.push([x1, Math.min(y1, y2)]);
+        boxesToCheck.push([x1 - 1, Math.min(y1, y2)]);
+      }
+
+      boxesToCheck.forEach(([x, y]) => {
+        if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return;
+        const top = getLineKey(x, y, x + 1, y);
+        const bottom = getLineKey(x, y + 1, x + 1, y + 1);
+        const left = getLineKey(x, y, x, y + 1);
+        const right = getLineKey(x + 1, y, x + 1, y + 1);
+        if (lines[top] && lines[bottom] && lines[left] && lines[right]) {
+          boxes[`${x},${y}`] = player;
+          if (player === "player") playerScore++;
+          else aiScore++;
+          madeBox = true;
+        }
+      });
+
+      drawBoard();
+      updateScore();
+      return madeBox;
+    }
+
+    function updateScore() {
+      document.getElementById("score").innerText = `Player: ${playerScore} | AI: ${aiScore}`;
+    }
+
+    canvas.addEventListener("click", (e) => {
+      if (currentPlayer !== "player") return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      let closest = null;
+      let minDist = Infinity;
+      const threshold = cellSize / 3;
+
+      for (let i = 0; i <= gridSize; i++) {
+        for (let j = 0; j <= gridSize; j++) {
+          const dotX = i * cellSize;
+          const dotY = j * cellSize;
+          const neighbors = [[1, 0], [0, 1]];
+
+          for (const [dx, dy] of neighbors) {
+            const ni = i + dx, nj = j + dy;
+            if (ni > gridSize || nj > gridSize) continue;
+            const midX = (dotX + ni * cellSize) / 2;
+            const midY = (dotY + nj * cellSize) / 2;
+            const dist = Math.hypot(mouseX - midX, mouseY - midY);
+
+            if (dist < minDist && dist < threshold) {
+              closest = [i, j, ni, nj];
+              minDist = dist;
+            }
+          }
+        }
+      }
+
+      if (closest) {
+        const [x1, y1, x2, y2] = closest;
+        if (isValidLine(x1, y1, x2, y2)) {
+          const madeBox = addLine(x1, y1, x2, y2, "player");
+          if (!madeBox) {
+            currentPlayer = "ai";
+            setTimeout(aiTurn, 200);
+          }
+        }
+      }
+    });
+
+    function aiTurn() {
+      aiMoveCounter++;
+      let madeBox = false;
+
+      // Random move mode every 2 turns
+      const randomMode = aiMoveCounter % 3 === 0;
+
+      if (!randomMode) {
+        // Try to find a box to complete
+        for (let x = 0; x < gridSize; x++) {
+          for (let y = 0; y < gridSize; y++) {
+            const linesAround = [
+              getLineKey(x, y, x + 1, y),
+              getLineKey(x, y + 1, x + 1, y + 1),
+              getLineKey(x, y, x, y + 1),
+              getLineKey(x + 1, y, x + 1, y + 1)
+            ];
+            const filled = linesAround.filter(line => lines[line]).length;
+            if (filled === 3) {
+              const missingLine = linesAround.find(line => !lines[line]);
+              if (missingLine) {
+                const [x1, y1, x2, y2] = missingLine.split(",").map(Number);
+                madeBox = addLine(x1, y1, x2, y2, "ai");
+                if (madeBox) return setTimeout(aiTurn, 200);
+                currentPlayer = "player";
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // Random move
+      const candidates = [];
+      for (let x = 0; x <= gridSize; x++) {
+        for (let y = 0; y <= gridSize; y++) {
+          const dirs = [[1, 0], [0, 1]];
+          for (const [dx, dy] of dirs) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx <= gridSize && ny <= gridSize && isValidLine(x, y, nx, ny)) {
+              candidates.push([x, y, nx, ny]);
+            }
+          }
+        }
+      }
+      if (candidates.length > 0) {
+        const [x1, y1, x2, y2] = candidates[Math.floor(Math.random() * candidates.length)];
+        madeBox = addLine(x1, y1, x2, y2, "ai");
+        if (madeBox) return setTimeout(aiTurn, 200);
+      }
+
+      currentPlayer = "player";
+    }
+
+    drawBoard();
+  </script>
+</body>
+</html>
