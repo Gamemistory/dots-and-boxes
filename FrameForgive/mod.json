@@ -1,0 +1,40 @@
+{
+  "geode": "5.11.2",
+  "gd": { "android": "2.2081" },
+  "id": "velos.frameforgive",
+  "name": "FrameForgive",
+  "version": "v0.1.0",
+  "developer": "V.E.L.O.S.",
+  "description": "Experimental timing-forgiveness research mod for Geometry Dash.",
+  "settings": {
+    "enabled": {
+      "name": "Enable FrameForgive",
+      "description": "Master switch for timing forgiveness.",
+      "type": "bool",
+      "default": false
+    },
+    "window": {
+      "name": "Timing window (frames)",
+      "description": "Maximum early/late adjustment, from 0 to 10 frames.",
+      "type": "int",
+      "default": 2,
+      "min": 0,
+      "max": 10,
+      "control": { "slider": true }
+    },
+    "prediction-ticks": {
+      "name": "Prediction horizon (physics ticks)",
+      "description": "Target lookahead; 480 ticks is about 2 seconds at 240 ticks/s.",
+      "type": "int",
+      "default": 480,
+      "min": 60,
+      "max": 480,
+      "control": { "slider": true }
+    },
+    "debug": {
+      "name": "Prediction debug logging",
+      "type": "bool",
+      "default": false
+    }
+  }
+}
